@@ -242,7 +242,7 @@ void fill_truth_swag(char *path, float *truth, int classes, int flip, float dx, 
     free(boxes);
 }
 
-void fill_truth_region(char *path, float *truth, int classes, int num_boxes, int flip, float dx, float dy, float sx, float sy)
+void fill_truth_region(char *path, float *truth, char **labels, int classes, int num_boxes, int flip, float dx, float dy, float sx, float sy)
 {
     char labelpath[4096];
     find_replace(path, "images", "labels", labelpath);
@@ -258,7 +258,7 @@ void fill_truth_region(char *path, float *truth, int classes, int num_boxes, int
     correct_boxes(boxes, count, dx, dy, sx, sy, flip);
     float x,y,w,h;
     int id;
-    int i;
+    int i, j;
 
     for (i = 0; i < count; ++i) {
         x =  boxes[i].x;
@@ -266,6 +266,12 @@ void fill_truth_region(char *path, float *truth, int classes, int num_boxes, int
         w =  boxes[i].w;
         h =  boxes[i].h;
         id = boxes[i].id;
+
+        // check id in labels
+        for (j = 0; j < classes; ++j) {
+            if (id == atoi(labels[j])) break;
+        }
+        if (j == classes) continue;
 
         if (w < .005 || h < .005) continue;
 
@@ -279,7 +285,7 @@ void fill_truth_region(char *path, float *truth, int classes, int num_boxes, int
         if (truth[index]) continue;
         truth[index++] = 1;
 
-        if (id < classes) truth[index+id] = 1;
+        truth[index+j] = 1;
         index += classes;
 
         truth[index++] = x;
@@ -488,7 +494,7 @@ void free_data(data d)
     }
 }
 
-data load_data_region(int n, char **paths, int m, int w, int h, int size, int classes, float jitter, float hue, float saturation, float exposure)
+data load_data_region(int n, char **paths, int m, int w, int h, int size, char **labels, int classes, float jitter, float hue, float saturation, float exposure)
 {
     char **random_paths = get_random_paths(paths, n, m);
     int i;
@@ -533,7 +539,7 @@ data load_data_region(int n, char **paths, int m, int w, int h, int size, int cl
         random_distort_image(sized, hue, saturation, exposure);
         d.X.vals[i] = sized.data;
 
-        fill_truth_region(random_paths[i], d.y.vals[i], classes, size, flip, dx, dy, 1./sx, 1./sy);
+        fill_truth_region(random_paths[i], d.y.vals[i], labels, classes, size, flip, dx, dy, 1./sx, 1./sy);
 
         free_image(orig);
         free_image(cropped);
@@ -729,7 +735,7 @@ void *load_thread(void *ptr)
     } else if (a.type == WRITING_DATA){
         *a.d = load_data_writing(a.paths, a.n, a.m, a.w, a.h, a.out_w, a.out_h);
     } else if (a.type == REGION_DATA){
-        *a.d = load_data_region(a.n, a.paths, a.m, a.w, a.h, a.num_boxes, a.classes, a.jitter, a.hue, a.saturation, a.exposure);
+        *a.d = load_data_region(a.n, a.paths, a.m, a.w, a.h, a.num_boxes, a.labels, a.classes, a.jitter, a.hue, a.saturation, a.exposure);
     } else if (a.type == DETECTION_DATA){
         *a.d = load_data_detection(a.n, a.paths, a.m, a.w, a.h, a.num_boxes, a.classes, a.jitter, a.hue, a.saturation, a.exposure);
     } else if (a.type == SWAG_DATA){

@@ -1,0 +1,11 @@
+classes=1000
+#train  = /home/labuser/CNN/data/imagenet/train.list
+##valid  = /home/labuser/CNN/data/imagenet/val.list	# no classifier in file path
+#valid  = data/inet.val.list
+train  = /data/imagenet/train_data.list
+valid  = /data/imagenet/inet.val.list
+backup = /home/labuser/CNN/backup
+labels = data/ilsvrc2012.labels.list
+names  = data/ilsvrc2012.shortnames.list
+top=5
+
