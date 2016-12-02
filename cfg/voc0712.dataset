@@ -1,7 +1,0 @@
-classes=20
-train  = /data/voc/train.txt
-valid  = /data/voc/2007_val.txt
-backup = /home/labuser/CNN/backup
-labels = data/voc.labels.list
-names  = data/voc.shortnames.list
-

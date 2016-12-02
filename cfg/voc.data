@@ -1,6 +1,7 @@
 classes= 20
 train  = /home/pjreddie/data/voc/train.txt
 valid  = /home/pjreddie/data/voc/2007_test.txt
+labels = data/voc.labels
 names = data/voc.names
 backup = backup
 
