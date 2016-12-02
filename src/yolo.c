@@ -13,6 +13,11 @@
 
 void train_yolo(char *datacfg, char *cfgfile, char *weightfile)
 {
+    list *options = read_data_cfg(datacfg);
+    char *train_images = option_find_str(options, "train", "data/voc.train");
+    char *backup_directory = option_find_str(options, "backup", "/backup/");
+    char *label_list = option_find_str(options, "labels", "data/voc.labels");
+    int classes = option_find_int(options, "classes", 20);
     srand(time(0));
     char *base = basecfg(cfgfile);
     printf("%s\n", base);
@@ -23,24 +28,20 @@ void train_yolo(char *datacfg, char *cfgfile, char *weightfile)
     }
     printf("Learning Rate: %g, Momentum: %g, Decay: %g\n", net.learning_rate, net.momentum, net.decay);
     int imgs = net.batch*net.subdivisions;
-    list *options = read_data_cfg(datacfg);
+    int i = *net.seen/imgs;
+    data train, buffer;
 
-    char *backup_directory = option_find_str(options, "backup", "/backup/");
-    char *label_list = option_find_str(options, "labels", "data/voc.labels.list");
-    char *train_list = option_find_str(options, "train", "data/voc.train.list");
-    int classes = option_find_int(options, "classes", 20);
 
     layer l = net.layers[net.n - 1];
 
     int side = l.side;
+    //int classes = l.classes;
     float jitter = l.jitter;
-    assert(classes == l.classes);
 
-    char **labels = get_labels(label_list);
-    list *plist = get_paths(train_list);
-    int N = plist->size;
+    list *plist = get_paths(train_images);
+    //int N = plist->size;
     char **paths = (char **)list_to_array(plist);
-    data train, buffer;
+    char **labels = get_labels(label_list);
 
     load_args args = {0};
     args.w = net.w;
@@ -62,8 +63,9 @@ void train_yolo(char *datacfg, char *cfgfile, char *weightfile)
 
     pthread_t load_thread = load_data_in_thread(args);
     clock_t time;
-    int epoch = (*net.seen)/N;
-    while(get_current_batch(net) < net.max_batches || net.max_batches == 0){
+    //while(i*imgs < N*120){
+    while(get_current_batch(net) < net.max_batches){
+        i += 1;
         time=clock();
         pthread_join(load_thread, 0);
         train = buffer;
@@ -76,16 +78,10 @@ void train_yolo(char *datacfg, char *cfgfile, char *weightfile)
         if (avg_loss < 0) avg_loss = loss;
         avg_loss = avg_loss*.9 + loss*.1;
 
-        printf("%d: %f, %f avg, %f rate, %lf seconds, %d images\n", get_current_batch(net), loss, avg_loss, get_current_rate(net), sec(clock()-time), *net.seen);
-        if(*net.seen/N > epoch){
-            epoch = *net.seen/N;
+        printf("%d: %f, %f avg, %f rate, %lf seconds, %d images\n", i, loss, avg_loss, get_current_rate(net), sec(clock()-time), i*imgs);
+        if(i%1000==0 || (i < 1000 && i%100 == 0)){
             char buff[256];
-            sprintf(buff, "%s/%s_%d.weights", backup_directory, base, epoch);
-            save_weights(net, buff);
-        }
-        if(get_current_batch(net)%100 == 0){
-            char buff[256];
-            sprintf(buff, "%s/%s.backup",backup_directory,base);
+            sprintf(buff, "%s/%s_%d.weights", backup_directory, base, i);
             save_weights(net, buff);
         }
         free_data(train);
@@ -118,8 +114,6 @@ void print_yolo_detections(FILE **fps, char *id, box *boxes, float **probs, int 
 
 void validate_yolo(char *datacfg, char *cfgfile, char *weightfile)
 {
-    char *base = "results/comp4_det_test_";
-
     network net = parse_network_cfg(cfgfile);
     if(weightfile){
         load_weights(&net, weightfile);
@@ -129,18 +123,17 @@ void validate_yolo(char *datacfg, char *cfgfile, char *weightfile)
     srand(time(0));
 
     list *options = read_data_cfg(datacfg);
-
-    char *name_list = option_find_str(options, "names", "data/voc.shortnames.list");
+    char *name_list = option_find_str(options, "names", "data/voc.names");
     char *valid_list = option_find_str(options, "valid", "data/voc.2007.valid");
     int classes = option_find_int(options, "classes", 20);
 
+    char *base = "results/comp4_det_test_";
     char **names = get_labels(name_list);
     list *plist = get_paths(valid_list);
-
     char **paths = (char **)list_to_array(plist);
 
     layer l = net.layers[net.n-1];
-    assert(classes == l.classes);
+    //int classes = l.classes;
 
     int j;
     FILE **fps = calloc(classes, sizeof(FILE *));
@@ -213,8 +206,6 @@ void validate_yolo(char *datacfg, char *cfgfile, char *weightfile)
 
 void validate_yolo_recall(char *datacfg, char *cfgfile, char *weightfile)
 {
-    char *base = "results/comp4_det_test_";
-
     network net = parse_network_cfg(cfgfile);
     if(weightfile){
         load_weights(&net, weightfile);
@@ -224,18 +215,17 @@ void validate_yolo_recall(char *datacfg, char *cfgfile, char *weightfile)
     srand(time(0));
 
     list *options = read_data_cfg(datacfg);
-
-    char *name_list = option_find_str(options, "names", "data/voc.shortnames.list");
+    char *name_list = option_find_str(options, "names", "data/voc.names");
     char *test_list = option_find_str(options, "test", "data/voc.2007.test");
     int classes = option_find_int(options, "classes", 20);
 
+    char *base = "results/comp4_det_test_";
     char **names = get_labels(name_list);
     list *plist = get_paths(test_list);
-
     char **paths = (char **)list_to_array(plist);
 
     layer l = net.layers[net.n-1];
-    assert(classes == l.classes);
+    //int classes = l.classes;
     int side = l.side;
 
     int j, k;
@@ -314,7 +304,7 @@ void test_yolo(char *datacfg, char *cfgfile, char *weightfile, char *filename, f
         load_weights(&net, weightfile);
     }
     list *options = read_data_cfg(datacfg);
-    char *name_list = option_find_str(options, "names", "data/voc.shortnames.list");
+    char *name_list = option_find_str(options, "names", "data/voc.names");
     char **names = get_labels(name_list);
     detection_layer l = net.layers[net.n-1];
     set_batch_network(&net, 1);
@@ -345,8 +335,8 @@ void test_yolo(char *datacfg, char *cfgfile, char *weightfile, char *filename, f
         printf("%s: Predicted in %f seconds.\n", input, sec(clock()-time));
         get_detection_boxes(l, 1, 1, thresh, probs, boxes, 0);
         if (nms) do_nms_sort(boxes, probs, l.side*l.side*l.n, l.classes, nms);
-        //draw_detections(im, l.side*l.side*l.n, thresh, boxes, probs, names, alphabet, l.classes);
-        draw_detections(im, l.side*l.side*l.n, thresh, boxes, probs, names, alphabet, l.classes);
+        //draw_detections(im, l.side*l.side*l.n, thresh, boxes, probs, names, alphabet, 20);
+        draw_detections(im, l.side*l.side*l.n, thresh, boxes, probs, names, alphabet, 20);
         save_image(im, "predictions");
         show_image(im, "predictions");
 
@@ -371,17 +361,17 @@ void run_yolo(int argc, char **argv)
         return;
     }
 
-    char *data = argv[3];
+    char *datacfg = argv[3];
     char *cfg = argv[4];
     char *weights = (argc > 5) ? argv[5] : 0;
     char *filename = (argc > 6) ? argv[6]: 0;
-    if(0==strcmp(argv[2], "test")) test_yolo(data, cfg, weights, filename, thresh);
-    else if(0==strcmp(argv[2], "train")) train_yolo(data, cfg, weights);
-    else if(0==strcmp(argv[2], "valid")) validate_yolo(data, cfg, weights);
-    else if(0==strcmp(argv[2], "recall")) validate_yolo_recall(data, cfg, weights);
+    if(0==strcmp(argv[2], "test")) test_yolo(datacfg, cfg, weights, filename, thresh);
+    else if(0==strcmp(argv[2], "train")) train_yolo(datacfg, cfg, weights);
+    else if(0==strcmp(argv[2], "valid")) validate_yolo(datacfg, cfg, weights);
+    else if(0==strcmp(argv[2], "recall")) validate_yolo_recall(datacfg, cfg, weights);
     else if(0==strcmp(argv[2], "demo")){
-        list *options = read_data_cfg(data);
-        char *name_list = option_find_str(options, "names", "data/voc.shortnames.list");
+        list *options = read_data_cfg(datacfg);
+        char *name_list = option_find_str(options, "names", "data/voc.names");
         char **names = get_labels(name_list);
         int classes = option_find_int(options, "classes", 20);
         demo(cfg, weights, thresh, cam_index, filename, names, classes, frame_skip, prefix, .5);
