@@ -204,7 +204,7 @@ void correct_boxes(box_label *boxes, int n, float dx, float dy, float sx, float 
     }
 }
 
-void fill_truth_swag(char *path, float *truth, int classes, int flip, float dx, float dy, float sx, float sy)
+void fill_truth_swag(char *path, float *truth, char **labels, int classes, int flip, float dx, float dy, float sx, float sy)
 {
     char labelpath[4096];
     find_replace(path, "images", "labels", labelpath);
@@ -219,7 +219,7 @@ void fill_truth_swag(char *path, float *truth, int classes, int flip, float dx, 
     correct_boxes(boxes, count, dx, dy, sx, sy, flip);
     float x,y,w,h;
     int id;
-    int i;
+    int i, j;
 
     for (i = 0; i < count && i < 30; ++i) {
         x =  boxes[i].x;
@@ -227,6 +227,12 @@ void fill_truth_swag(char *path, float *truth, int classes, int flip, float dx, 
         w =  boxes[i].w;
         h =  boxes[i].h;
         id = boxes[i].id;
+
+        // check id in labels
+        for (j = 0; j < classes; ++j) {
+            if (id == atoi(labels[j])) break;
+        }
+        if (j == classes) continue;
 
         if (w < .0 || h < .0) continue;
 
@@ -237,7 +243,7 @@ void fill_truth_swag(char *path, float *truth, int classes, int flip, float dx, 
         truth[index++] = w;
         truth[index++] = h;
 
-        if (id < classes) truth[index+id] = 1;
+        if (j < classes) truth[index+j] = 1;
     }
     free(boxes);
 }
@@ -618,7 +624,7 @@ data load_data_compare(int n, char **paths, int m, int classes, int w, int h)
     return d;
 }
 
-data load_data_swag(char **paths, int n, int classes, float jitter)
+data load_data_swag(char **paths, int n, char **labels, int classes, float jitter)
 {
     int index = rand()%n;
     char *random_path = paths[index];
@@ -663,7 +669,7 @@ data load_data_swag(char **paths, int n, int classes, float jitter)
     if(flip) flip_image(sized);
     d.X.vals[0] = sized.data;
 
-    fill_truth_swag(random_path, d.y.vals[0], classes, flip, dx, dy, 1./sx, 1./sy);
+    fill_truth_swag(random_path, d.y.vals[0], labels, classes, flip, dx, dy, 1./sx, 1./sy);
 
     free_image(orig);
     free_image(cropped);
@@ -745,7 +751,7 @@ void *load_thread(void *ptr)
     } else if (a.type == DETECTION_DATA){
         *a.d = load_data_detection(a.n, a.paths, a.m, a.w, a.h, a.num_boxes, a.labels, a.classes, a.jitter, a.hue, a.saturation, a.exposure);
     } else if (a.type == SWAG_DATA){
-        *a.d = load_data_swag(a.paths, a.n, a.classes, a.jitter);
+        *a.d = load_data_swag(a.paths, a.n, a.labels, a.classes, a.jitter);
     } else if (a.type == COMPARE_DATA){
         *a.d = load_data_compare(a.n, a.paths, a.m, a.classes, a.w, a.h);
     } else if (a.type == IMAGE_DATA){
